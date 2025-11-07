@@ -1,5 +1,5 @@
 {
-  "save_image_format": ".png",
+  "save_image_format": ".jpg",
   "latest_preset": "Default",
   "cache_dir": "models",
   "checkpoints_dir": "F:\\models\\Stable-diffusion",
