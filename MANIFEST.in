@@ -1,0 +1,7 @@
+# MANIFEST.in
+
+include LICENSE
+include NOTICE
+include CHANGELOG.md
+include README.md
+

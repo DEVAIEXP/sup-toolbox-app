@@ -1,0 +1,62 @@
+DEVAIEXP Scaling-UP ToolBox Application
+Copyright 2025, DEVAIEXP
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
+
+This product includes or is built upon software developed by third parties.
+The following is a list of these components and their respective licenses.
+Full license texts for each component can be found within their respective module directories.
+
+===================================================
+Component: SUPIR
+---------------------------------------------------
+This product includes an adaptation of the SUPIR project.
+Copyright (c) 2024 by SupPixel Pty Ltd. All rights reserved.
+Original Project: https://github.com/Fanghua-Yu/SUPIR
+
+The use of this component is strictly governed by the SUPIR Software
+License Agreement. This license PROHIBITS ANY COMMERCIAL USE of the
+SUPIR pipeline or its outputs. For commercial licensing, please contact
+the original authors.
+
+===================================================
+Component: FaithDiff
+---------------------------------------------------
+This product includes a derivative work based on the FaithDiff project.
+The original work is Copyright (c) 2025, Junyang Chen, and is licensed
+under the MIT License.
+Original Project: https://github.com/JyChen9811/FaithDiff
+
+===================================================
+Component: IPAdapter
+---------------------------------------------------
+This product utilizes software from the IP-Adapter project.
+The original work is Copyright (c) 2023, TencentARC, and is licensed
+under the Apache License, Version 2.0.
+Original Project: https://github.com/tencent-ailab/IP-Adapter
+
+===================================================
+Component: ControlNet Tile Pipeline
+---------------------------------------------------
+The code for this pipeline is a derivative work based on the ControlNet
+pipeline implementations found in the HuggingFace Diffusers library.
+
+The original Diffusers library is Copyright 2024, The HuggingFace Team,
+and is licensed under the Apache License, Version 2.0.
+
+===================================================
+Component: Mixture of Diffusers Technique
+---------------------------------------------------
+This product includes an implementation of the "Mixture of Diffusers"
+technique. The original work is Copyright (c) 2022, Álvaro Barbero Jiménez,
+and is licensed under the MIT License.
+Original Project: https://github.com/albarji/mixture-of-diffusers
+
+===================================================
+Component: Diffusers Library
+---------------------------------------------------
+This product is built upon and includes software from the Diffusers library.
+The original work is Copyright 2024, The HuggingFace Team, and is licensed
+under the Apache License, Version 2.0.
+Original Project: https://github.com/huggingface/diffusers

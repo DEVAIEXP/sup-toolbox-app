@@ -1,0 +1,27 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+gradio==5.44.1
+gradio_tokenizertextbox
+gradio_taggrouphelper
+gradio_propertysheet
+gradio_htmlinjector
+gradio_imagemeta
+gradio_livelog
+gradio_bottombar
+gradio_topbar
+gradio_textboxplus
+gradio_dropdownplus
+gradio_buttonplus
+gradio_folderexplorer
+gradio_mediagallery
+gradio_creditspanel
+spaces
+optimum-quanto==0.2.7
+torch==2.8.0+cu126
+torchvision==0.23.0+cu126
+torchaudio==2.8.0+cu126
+transformers==4.56.0
+bitsandbytes==0.48.1
+xformers==0.0.32.post2
+hf_xet
+git+https://github.com/DEVAIEXP/sup-toolbox.git@main#egg=sup-toolbox

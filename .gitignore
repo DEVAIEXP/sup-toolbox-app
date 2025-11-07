@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+/outputs/restored
+/outputs/upscaled
+/models
+/dist
+/.vs
+.vscode/
+.idea/
+/venv
+.venv/
+*.log
+Makefile
+.DS_Store
+.gradio

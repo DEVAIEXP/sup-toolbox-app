@@ -1,0 +1,301 @@
+/* ==========================================================================
+   1. GLOBAL & LAYOUT STYLES
+   ========================================================================== */
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Main application container styling */
+.gradio-container {
+    border-radius: 15px;
+    padding: 10px 10px; 
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); 
+    margin: 40px 350px;
+}
+
+/* Text shadow for main headings for better readability */
+.gradio-container h1 {
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Utility class to make elements fill their container's width */
+.fillable {
+    width: 100% !important;
+    max-width: unset !important; 
+}
+.fillable .sidebar-parent {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+}
+
+.credit-panel .outer-credits-wrapper .credits-panel-wrapper {
+    min-height: 80vh !important;
+    max-height: 700px;
+}
+.media-gallery-row {
+    min-height: 80vh !important;
+    max-height: 700px;
+}
+/* ==========================================================================
+   2. CUSTOM SCROLLBAR STYLES (GLOBAL & SIDEBAR)
+   ========================================================================== */
+
+/* --- For WebKit browsers (Chrome, Safari, Edge, etc.) --- */
+.sidebar-content::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background-color: transparent;
+}
+
+.sidebar-content::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background-color: rgba(136, 136, 136, 0.4);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(136, 136, 136, 0.7);
+}
+
+/* --- For Firefox --- */
+.sidebar-content,
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(136, 136, 136, 0.7) transparent;
+}
+
+
+/* ==========================================================================
+   3. SIDEBAR STYLES
+   ========================================================================== */
+
+.sidebar {
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+/* .top-bar, .bottom-bar {
+    border-radius: 10px;    
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+} */
+/* Overrides for the content padding inside the sidebar */
+.sidebar .sidebar-content {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+}
+
+/* Centers text within Markdown blocks inside the sidebar */
+.sidebar .sidebar-content .column .block div .prose {
+    text-align: center;
+}
+
+/* Stylish override for the sidebar toggle button */
+.sidebar .toggle-button {    
+    background: linear-gradient(90deg, #34d399, #10b981) !important;
+    border: none;
+    padding: 12px 18px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-radius: 5px;
+    position: absolute;
+    top: 50%;        
+    right: -28px !important;
+    left: auto !important;
+    transform: unset !important;   
+}
+
+.sidebar.right .toggle-button {
+    left: -28px !important;
+    right: auto !important; 
+    transform: rotate(180deg) !important;
+}
+
+.sidebar.open .chevron-left {
+    transform: rotate(-135deg);
+}
+
+.top-bar .toggle-top-button, .bottom-bar .toggle-bottom-button {
+    background: linear-gradient(90deg, #34d399, #10b981) !important;
+    border: none;
+    padding: 12px 18px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out;
+    /* right: -20px !important; */
+} 
+.toggle-button:hover {
+    transform: scale(1.05);
+} 
+
+
+/* ==========================================================================
+   4. FLYOUT POPOVER STYLES
+   ========================================================================== */
+
+/* The context area from which the flyout is positioned */
+.flyout-context-area {
+    position: relative !important;
+    overflow: visible !important; /* Allows flyout to render outside its parent */
+}
+
+/* The main flyout container (the popover itself) */
+.flyout-container {
+    position: fixed !important;
+    z-index: 1000;
+    width: 350px !important;
+    background: var(--panel-background-fill, white);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: var(--spacing-lg) !important;
+    /* Reset flex properties that might be inherited */
+    flex-grow: 0 !important;
+    min-width: unset !important;
+    align-self: center !important;
+}
+
+/* Allows tooltips inside a PropertySheet within a flyout to be visible */
+.flyout-container .propertysheet-wrapper .content-wrapper .container {
+    overflow: visible !important;
+}
+
+/* The hidden container for the flyout's initial content */
+.flyout-source-hidden {
+    display: none !important;
+}
+
+/* The close (X) button for the flyout */
+.flyout-close-btn {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    z-index: 1001; /* Should be on top of flyout content */
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--neutral-800) !important;
+    min-width: 24px !important;
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    font-size: 1.2em !important;
+    line-height: 1;
+}
+
+/* .flyout-close-btn button:hover {
+    color: var(--body-text-color) !important;
+} */
+.flyout-container .block .image-container .icon-button-wrapper {
+	right: 20px !important
+}
+.flyout-container .block .image-container > button {
+	border: none !important;
+    border-radius: 0 !important;
+}
+#flyout_sheet > div.content-wrapper > div > div > div > div {
+    color: var(--button-secondary-text-color);
+}
+/* ==========================================================================
+   5. COMPONENT-SPECIFIC STYLES & OVERRIDES
+   ========================================================================== */
+
+/* Custom styling for the cancel button */
+#cancel-button { /* Corrected the typo from 'cancell' to 'cancel' */
+    background: linear-gradient(120deg, var(--neutral-500) 0%, var(--neutral-600) 60%, var(--neutral-700) 100%) !important;
+}
+.custom-dropdown .wrap-inner input {
+    padding-right: 22px;
+}
+/* --- Styles for creating dropdowns with integrated "ear" buttons --- */
+
+/* Container that looks like a single input field */
+.fake-input-container {
+    border: var(--input-border-width) solid var(--border-color-primary);
+    border-radius: var(--input-radius);
+    background: var(--block-background-fill) !important;
+    box-shadow: var(--input-shadow);
+    transition: box-shadow 0.2s, border-color 0.2s;
+    padding: 0 !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+}
+
+.fake-input-container:focus-within {
+    box-shadow: var(--input-shadow-focus);
+    border-color: var(--input-border-color-focus);
+}
+
+/* Removes the default border from a Gradio dropdown when it's inside our fake container */
+.no-border-dropdown .form {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+/* The settings (gear) button next to the dropdown */
+.integrated-ear-btn {
+    align-self: center;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--body-text-color-subdued) !important;
+    font-size: 1.1em;
+    min-width: 28px !important;
+    width: 28px !important;
+    height: 100% !important;
+    padding: 20px var(--spacing-sm) 0 0 !important;
+    transition: color 0.2s ease-in-out;
+    flex-grow: 0 !important;
+}
+
+.integrated-ear-btn:hover {
+    color: var(--body-text-color) !important;
+}
+
+.row-form-size .form {
+    flex-grow: 0 !important;
+    min-width: 50% !important;
+}
+
+.row-form-size-2 .form {
+    flex-grow: 0 !important;
+    min-width: 97% !important;
+}
+
+/* --- Misc Component Tweaks --- */
+
+/* Removes the gap from a specific group of settings */
+.group {
+    gap: unset !important;
+}
+
+/* Targets a styler inside the sampler group to reset form gap */
+.group .styler {
+    --form-gap-width: 0px !important;
+}
+
+/* Example of how to center content in Gradio's example components */
+#examples_container {
+    margin: auto;
+    width: 90%;
+}
+
+#examples_row {
+    justify-content: center;
+}
