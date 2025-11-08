@@ -17,6 +17,7 @@ import os
 import traceback
 from dataclasses import fields
 from enum import Enum
+from importlib import resources
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Dict, List, Optional, get_type_hints
@@ -40,19 +41,6 @@ from sup_toolbox.modules.SUPIR.pipeline_supir_stable_diffusion_xl import (
 )
 from sup_toolbox.utils.logging import logger
 from ui.ui_config import AppSettings, SchedulerSettings, SUPIRAdvanced_Config, SUPIRInjectionConfig
-
-
-try:
-    from importlib import resources
-
-    SUP_TOOLBOX_PRESETS_AVAILABLE = True
-except ImportError:
-    try:
-        import pkg_resources
-
-        SUP_TOOLBOX_PRESETS_AVAILABLE = True
-    except ImportError:
-        SUP_TOOLBOX_PRESETS_AVAILABLE = False
 
 
 class UIData:
@@ -194,87 +182,141 @@ class UIData:
 
     def get_preset_list(self):
         """
-        Scans for both default library presets and local user presets,
-        then updates self.PRESETS_LIST.
+        Scans for both default library presets and local user presets, then updates the instance's PRESETS_LIST.
+
+        This method performs a comprehensive scan to build a unified list of available presets for the UI.
+        It follows these steps:
+        1.  Scans the user-defined presets directory (`self.USER_PRESETS_DIR`) for any custom `.json` files.
+            This directory is created if it does not exist.
+        2.  Uses the modern `importlib.resources` library to safely locate and scan the `presets`
+            directory bundled within the installed `sup_toolbox` package. This approach works
+            reliably across all installation types (standard, editable, etc.).
+        3.  Prefixes the names of default presets with "Default: " to distinguish them in the UI.
+        4.  Merges the two lists (user and default), sorts them alphabetically, and stores the
+            final list in `self.PRESETS_LIST`.
+
+        Raises:
+            - Logs an error via the `logging` module if scanning the user presets directory fails.
+            - Logs a warning if the `sup_toolbox` package or its presets directory cannot be found.
+            - Logs an error for any other unexpected exceptions during the process.
         """
-        print("Loading presets list...")
+
+        print("Scanning for user and default presets...")
+
         user_presets = set()
         default_presets = set()
 
-        # Load User Presets
+        # 1. Load User-Defined Presets
         try:
+            # Ensure the user presets directory exists before scanning.
+            self.USER_PRESETS_DIR.mkdir(parents=True, exist_ok=True)
             for f in self.USER_PRESETS_DIR.glob("*.json"):
                 user_presets.add(f.stem)
         except Exception as e:
-            logger.error(f"Error scanning user presets directory: {e}")
+            logger.error(f"Could not scan user presets directory at '{self.USER_PRESETS_DIR}': {e}")
 
-        # Load Default Presets
-        if SUP_TOOLBOX_PRESETS_AVAILABLE:
-            try:
-                if "resources" in locals():
-                    files = resources.files("sup_toolbox").joinpath("presets").iterdir()
-                    for item in files:
-                        if item.is_file() and item.name.endswith(".json"):
-                            default_presets.add(f"Default: {item.stem}")
-                elif "pkg_resources" in locals():
-                    preset_files = pkg_resources.resource_listdir("sup_toolbox", "presets")
-                    for f in preset_files:
-                        if f.endswith(".json"):
-                            default_presets.add(f"Default: {Path(f).stem}")
-                # Development installation (pip install -e .)
-                elif os.path.exists("../sup-toolbox/src/sup_toolbox/presets"):
-                    for f in os.listdir("../sup-toolbox/src/sup_toolbox/presets"):
-                        if f.endswith(".json"):
-                            default_presets.add(f"Default: {Path(f).stem}")
+        # 2. Load Bundled Default Presets
+        try:
+            # Use `importlib.resources.files` to get a traversable path object
+            # to the 'presets' directory inside the installed 'sup_toolbox' package.
+            # This is the modern, standard way to access package data.
+            preset_path = resources.files("sup_toolbox").joinpath("presets")
 
-            except (ModuleNotFoundError, FileNotFoundError):
-                logger.warning("Could not find default presets from the sup-toolbox library.")
-            except Exception as e:
-                logger.error(f"Error loading default presets: {e}")
+            # Iterate through the contents of the bundled presets directory.
+            for item in preset_path.iterdir():
+                if item.is_file() and item.name.endswith(".json"):
+                    # Add with "Default: " prefix for UI clarity.
+                    default_presets.add(f"Default: {item.stem}")
 
-        # 3. Merge and Sort
-        all_presets = sorted(user_presets) + sorted(default_presets)
-        self.PRESETS_LIST = all_presets
+        except ModuleNotFoundError:
+            # This occurs if the `sup_toolbox` package is not installed in the environment.
+            logger.warning("Could not find default presets because the 'sup-toolbox' library is not installed.")
+        except FileNotFoundError:
+            # This might occur if the package is installed but the 'presets' folder is missing.
+            logger.warning("Located 'sup-toolbox' library, but its 'presets' directory could not be found.")
+        except Exception as e:
+            # Catch any other unexpected errors during resource loading.
+            logger.error(f"An unexpected error occurred while loading default presets: {e}")
+
+        # 3. Merge, Sort, and Finalize the List
+        # Convert sets to lists, sort each one, and then combine.
+        # User presets are listed first.
+        sorted_user_presets = sorted(user_presets)
+        sorted_default_presets = sorted(default_presets)
+
+        self.PRESETS_LIST = sorted_user_presets + sorted_default_presets
+        print(f"Finished loading presets. Found {len(user_presets)} user preset(s) and {len(default_presets)} default preset(s).")
 
     def load_preset(self, preset_name: str) -> dict:
         """
-        Loads a specific preset from a JSON file, checking both default and user locations.
+        Loads a specific preset from a JSON file, returning its content as a dictionary.
+
+        This method intelligently searches for the preset in two locations:
+        1.  If the `preset_name` starts with "Default: ", it uses `importlib.resources`
+            to securely read the corresponding bundled preset file from within the
+            installed `sup_toolbox` package.
+        2.  Otherwise, it assumes the preset is a user-defined file located in the
+            `self.USER_PRESETS_DIR` directory.
+
+        In case of any errors (e.g., file not found, invalid JSON), it logs the
+        error and returns an empty dictionary to ensure the application can
+        continue gracefully.
+
+        Args:
+            preset_name (str): The name of the preset to load. Default presets
+                should be prefixed with "Default: ".
+
+        Returns:
+            dict: A dictionary containing the loaded preset data, or an empty
+                dictionary if the preset could not be loaded.
         """
 
+        if not preset_name or not preset_name.strip():
+            logger.warning("`load_preset` called with an empty name.")
+            return {}
+
         if preset_name.startswith("Default: "):
+            # Handle Bundled Default Presets
             base_name = preset_name.replace("Default: ", "")
-            if not SUP_TOOLBOX_PRESETS_AVAILABLE:
-                logger.error("Cannot load default preset because package resources could not be imported.")
-                return {}
+            logger.info(f"Loading default preset: '{base_name}'")
             try:
-                if "resources" in locals():
-                    preset_path = resources.files("sup_toolbox").joinpath("presets").joinpath(f"{base_name}.json")
-                    with preset_path.open("r", encoding="utf-8") as f:
-                        return json.load(f)
-                elif "pkg_resources" in locals():
-                    json_content = pkg_resources.resource_string("sup_toolbox", f"presets/{base_name}.json")
-                    return json.loads(json_content)
-                # Development installation (pip install -e .)
-                elif os.path.exists("../sup-toolbox/src/sup_toolbox/presets"):
-                    preset_path = Path("../sup-toolbox/src/sup_toolbox/presets").joinpath(f"{base_name}.json")
-                    with preset_path.open("r", encoding="utf-8") as f:
-                        return json.load(f)
+                # Use `importlib.resources` to safely access the package data file.
+                # `files()` returns a traversable object representing the package.
+                preset_file_path = resources.files("sup_toolbox").joinpath("presets").joinpath(f"{base_name}.json")
+
+                # `read_text()` is a convenient and safe way to read the file content.
+                json_content = preset_file_path.read_text(encoding="utf-8")
+                return json.loads(json_content)
+
+            except ModuleNotFoundError:
+                logger.error("Cannot load default preset because the 'sup-toolbox' library is not installed.")
+                return {}
+            except FileNotFoundError:
+                logger.error(f"Default preset file '{base_name}.json' not found within the 'sup_toolbox' package.")
+                return {}
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse default preset '{base_name}.json'. Invalid JSON: {e}")
+                return {}
             except Exception as e:
-                logger.error(f"Error loading default preset '{base_name}': {e}")
-                traceback.print_exc()
+                logger.error(f"An unexpected error occurred while loading default preset '{base_name}': {e}")
                 return {}
         else:
+            # Handle User-Defined Presets
+            logger.info(f"Loading user preset: '{preset_name}'")
             preset_path = self.USER_PRESETS_DIR / f"{preset_name}.json"
+
+            if not preset_path.is_file():
+                logger.warning(f"User preset '{preset_name}' not found at path: {preset_path}")
+                return {}
+
             try:
-                if preset_path.exists():
-                    with open(preset_path, "r", encoding="utf-8") as file:
-                        return json.load(file)
-                else:
-                    logger.warning(f"User preset '{preset_name}' not found at {preset_path}")
-                    return {}
+                with open(preset_path, "r", encoding="utf-8") as file:
+                    return json.load(file)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse user preset '{preset_name}.json'. Invalid JSON: {e}")
+                return {}
             except Exception as e:
-                logger.error(f"Error in load_preset for user preset '{preset_name}': {e}")
-                traceback.print_exc()
+                logger.error(f"An unexpected error occurred while loading user preset '{preset_name}': {e}")
                 return {}
 
     def save_preset(self, preset_name: str, values_dict: dict) -> str:

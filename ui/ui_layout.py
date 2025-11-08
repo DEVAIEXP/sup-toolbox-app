@@ -497,7 +497,7 @@ def create_ui_components(uidata: UIData) -> UIComponents:
                             preview=False,
                             show_download_button=False,
                             only_custom_metadata=False,
-                            popup_metadata_width="40%",
+                            popup_metadata_width="80%",
                         )
 
             with gr.Tab(f"{uidata.settings_symbol} Settings") as settings_tab:
