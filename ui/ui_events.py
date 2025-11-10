@@ -26,9 +26,8 @@ from pathlib import Path
 from typing import Any, Union, cast
 
 import gradio as gr
-import spaces
 from gradio_imagemeta.helpers import extract_metadata, transfer_metadata
-from gradio_livelog.utils import ProgressTracker, Tee, TqdmToQueueWriter, capture_logs, livelog
+from gradio_livelog.utils import ProgressTracker, Tee, TqdmToQueueWriter, capture_logs
 from gradio_propertysheet import PropertySheet
 from gradio_propertysheet.helpers import flatten_dataclass_with_labels
 from PIL import Image
@@ -45,11 +44,8 @@ from sup_toolbox.enums import (
     UpscalingMode,
     WeightingMethod,
 )
-from sup_toolbox.sup_toolbox_pipeline import (
-    PipelineCancelationRequested,
-    SUPToolBoxPipeline,
-)
 from sup_toolbox.utils.system import infer_type
+from ui.globals import pipeline_lock, sup_toolbox_pipe
 from ui.ui_config import (
     APPSETTINGS_SHEET_DEPENDENCY_RULES,
     DEFAULT_PROMPTS,
@@ -80,60 +76,63 @@ class EventHandlers:
 
     def update_pipeline(self, log_callback=None, progress_bar_handler=None):
         """
-        Update or initialize the global SUPToolBoxPipeline instance.
-        This function ensures the module-level pipeline object (sup_toolbox_pipe) is created
-        and configured according to the current ui data and the provided callbacks/handlers.
-        If a pipeline instance does not yet exist, it constructs a new SUPToolBoxPipeline
-        using uidata.config and the supplied callbacks/handlers. If an instance already
-        exists, it updates the instance's configuration and callback/handler attributes.
+        Initializes or updates the shared SUPToolBoxPipeline instance in a thread-safe manner.
+
+        This method ensures that the module-level pipeline object (`sup_toolbox_pipe`)
+        is created and configured according to the current application state. It uses a
+        thread lock (`pipeline_lock`) to guarantee that the pipeline is initialized
+        only once, even if multiple threads or processes attempt to call this method
+        concurrently.
+
+        If a pipeline instance does not yet exist, it constructs a new `SUPToolBoxPipeline`
+        using the configuration from `self.state.uidata.config` and the provided callbacks.
+        If an instance already exists, it simply updates the instance's configuration and
+        callback attributes with the latest values from the application state.
+
         Parameters
         ----------
-        log_callback : callable | None
-            Optional callback used by the pipeline to emit log messages. If None, no
-            log callback is set or the existing one is cleared.
-        progress_bar_handler : callable | None
-            Optional handler for reporting progress (e.g., for UI progress bars). If None,
-            no progress handler is set or the existing one is cleared.
-        Globals
-        -------
-        sup_toolbox_pipe : SUPToolBoxPipeline | None
-            Module-level pipeline instance. This function will create and assign to this
-            global when it is None, or mutate its attributes when it already exists.
-        uidata : object
-            Object expected to expose a `config` attribute used to initialize or update
-            the pipeline configuration.
-        cancel_event : object
-            Cancellation event passed to the pipeline on construction or update.
-        Side effects
+        log_callback : callable, optional
+            A callback function used by the pipeline to emit log messages. Defaults to `None`.
+        progress_bar_handler : callable, optional
+            A handler for reporting progress, typically for UI progress bars. Defaults to `None`.
+
+        Accesses
+        --------
+        self.state.uidata.config : Config
+            The main configuration object used to initialize or update the pipeline.
+        self.state.cancel_event : threading.Event
+            The cancellation event object passed to the pipeline.
+
+        Side Effects
         ------------
-        - May create a new SUPToolBoxPipeline instance and assign it to the global
-        `sup_toolbox_pipe`.
-        - May mutate attributes of an existing `sup_toolbox_pipe` (config, log_callback,
-        progress_bar_handler, cancel_event).
+        - Initializes the module-level `sup_toolbox_pipe` variable if it is `None`.
+        - Mutates the attributes (`config`, `log_callback`, etc.) of an existing
+          `sup_toolbox_pipe` instance.
+        - The import of `SUPToolBoxPipeline` is done locally within the function
+          to support the lazy-loading architecture.
+
         Returns
         -------
         None
-        Raises
-        ------
-        NameError
-            If required globals (e.g., SUPToolBoxPipeline, uidata, cancel_event) are not
-            defined in the module scope.
-        Exception
-            Any exception raised by SUPToolBoxPipeline constructor or by assignment to
-            pipeline attributes will propagate to the caller.
         """
-        if self.state.sup_toolbox_pipe is None:
-            self.state.sup_toolbox_pipe = SUPToolBoxPipeline(
-                self.state.uidata.config,
-                log_callback=log_callback,
-                progress_bar_handler=progress_bar_handler,
-                cancel_event=self.state.cancel_event,
-            )
-        else:
-            self.state.sup_toolbox_pipe.config = self.state.uidata.config
-            self.state.sup_toolbox_pipe.log_callback = log_callback
-            self.state.sup_toolbox_pipe.progress_bar_handler = progress_bar_handler
-            self.state.sup_toolbox_pipe.cancel_event = self.state.cancel_event
+        global sup_toolbox_pipe
+        from sup_toolbox.sup_toolbox_pipeline import (
+            SUPToolBoxPipeline,
+        )
+
+        with pipeline_lock:
+            if sup_toolbox_pipe is None:
+                sup_toolbox_pipe = SUPToolBoxPipeline(
+                    self.state.uidata.config,
+                    log_callback=log_callback,
+                    progress_bar_handler=progress_bar_handler,
+                    cancel_event=self.state.cancel_event,
+                )
+            else:
+                sup_toolbox_pipe.config = self.state.uidata.config
+                sup_toolbox_pipe.log_callback = log_callback
+                sup_toolbox_pipe.progress_bar_handler = progress_bar_handler
+                sup_toolbox_pipe.cancel_event = self.state.cancel_event
 
     def get_supir_advanced_values(self):
         """
@@ -474,7 +473,7 @@ class EventHandlers:
                                 instance = dataclass_from_dict(dc_type, value_from_preset)
                                 instance = apply_dynamic_changes(instance, RESTORER_SHEET_DEPENDENCY_RULES)
                                 RESTORER_CONFIG_MAPPING[RestorerEngine.SUPIR.value] = instance
-                            elif component.elem_id == "restorer_supir_advanced_settings":
+                            elif component.elem_id == "restorer_supir_advanced_settings" and output_updates[0]["value"] == RestorerEngine.SUPIR.value:
                                 dc_type = type(RESTORER_CONFIG_MAPPING["SUPIRAdvanced"])
                                 instance = dataclass_from_dict(dc_type, value_from_preset)
                                 instance = apply_dynamic_changes(instance, SUPIR_ADVANCED_RULES)
@@ -489,7 +488,7 @@ class EventHandlers:
                                 dc_type = type(UPSCALER_CONFIG_MAPPING[UpscalerEngine.SUPIR.value])
                                 instance = dataclass_from_dict(dc_type, value_from_preset)
                                 UPSCALER_CONFIG_MAPPING[UpscalerEngine.SUPIR.value] = instance
-                            elif component.elem_id == "upscaler_supir_advanced_settings":
+                            elif component.elem_id == "upscaler_supir_advanced_settings" and output_updates[1]["value"] == UpscalerEngine.SUPIR.value:
                                 dc_type = type(UPSCALER_CONFIG_MAPPING["SUPIRAdvanced"])
                                 instance = dataclass_from_dict(dc_type, value_from_preset)
                                 instance = apply_dynamic_changes(instance, SUPIR_ADVANCED_RULES)
@@ -1020,6 +1019,26 @@ class EventHandlers:
 
         return self.state.restorer_config_class
 
+    def on_restorer_supir_advanced_sheet_change(self, updated_config: SUPIRAdvanced_Config | None):
+        """
+        Handles changes from the restorer supir advanced configuration PropertySheet.
+
+        It calls the internal `apply_dynamic_changes` helper to apply dynamic rules
+        and manage seed randomization, then updates the global state.
+
+        Args:
+            updated_config (dataclass | None): The new configuration from the sheet.
+
+        Returns:
+            dataclass: The updated and processed configuration dataclass.
+        """
+        if updated_config is None:
+            return self.state.restorer_supir_advanced_config_class
+
+        self.state.restorer_supir_advanced_config_class = apply_dynamic_changes(updated_config, SUPIR_ADVANCED_RULES)
+
+        return self.state.restorer_supir_advanced_config_class
+
     def on_upscaler_sheet_change(
         self,
         updated_config: Union[SUPIR_Config, ControlNetTile_Config, FaithDiff_Config, None],
@@ -1043,6 +1062,26 @@ class EventHandlers:
         self.state.upscaler_config_class = self._update_sheet_changes(updated_config, "Upscaler")
 
         return self.state.upscaler_config_class
+
+    def on_upscaler_supir_advanced_sheet_change(self, updated_config: SUPIRAdvanced_Config | None):
+        """
+        Handles changes from the upscaler supir advanced configuration PropertySheet.
+
+        It calls the internal `apply_dynamic_changes` helper to apply dynamic rules
+        and manage seed randomization, then updates the global state.
+
+        Args:
+            updated_config (dataclass | None): The new configuration from the sheet.
+
+        Returns:
+            dataclass: The updated and processed configuration dataclass.
+        """
+        if updated_config is None:
+            return self.state.upscaler_supir_advanced_config_class
+
+        self.state.upscaler_supir_advanced_config_class = apply_dynamic_changes(updated_config, SUPIR_ADVANCED_RULES)
+
+        return self.state.upscaler_supir_advanced_config_class
 
     def on_settings_tab_select(self):
         """
@@ -1205,6 +1244,9 @@ class EventHandlers:
         gr.Info("Image metadata loaded.")
         return output_values
 
+    def on_input_image_change(self, input_image):
+        self.state.input_image_path = getattr(input_image, "path", None)
+
     def on_load_metadata_from_single_image(self, image_data):
         """
         Callback to load metadata from the main input image component.
@@ -1262,7 +1304,6 @@ class EventHandlers:
         upscaler_engine,
         restorer_model_name,
         upscaler_model_name,
-        input_image,
         action="generation_process",
     ):
         """
@@ -1276,14 +1317,13 @@ class EventHandlers:
             upscaler_engine (str): The selected upscaler engine.
             restorer_model_name (str): The selected restorer model.
             upscaler_model_name (str): The selected upscaler model.
-            input_image (Any): The input image object from Gradio.
             action (str): The type of action being initiated, used to tailor checks.
 
         Returns:
             Tuple[gr.update, gr.update]: Updates to open the bottom bar and configure
                                          the LiveLog display mode.
         """
-        if input_image is None or not hasattr(input_image, "path"):
+        if self.state.input_image_path is None:
             raise gr.Error("Input image is required. Please upload an image to proceed.")
 
         if action == "generation_process":
@@ -1296,15 +1336,7 @@ class EventHandlers:
 
         return gr.update(open=True), gr.update(display_mode="full" if action == "generation_process" else "log")
 
-    @spaces.GPU(duration=60)
-    @livelog(
-        log_names=["suptoolbox_app", "suptoolbox"],
-        outputs_for_yield=["placeholder1", "placeholder2"],
-        log_output_index=1,
-        result_output_index=0,
-        use_tracker=False,
-    )
-    def on_refresh_restoration_mask(self, mask_prompt, lq_image_path, **kwargs):
+    def on_refresh_restoration_mask(self, mask_prompt, **kwargs):
         """
         Generates a face restoration mask based on a text prompt.
 
@@ -1319,17 +1351,19 @@ class EventHandlers:
         Returns:
             PIL.Image: The generated mask image.
         """
-        log_callback, logger = kwargs.get("log_callback"), logging.getLogger(kwargs.get("log_name", "suptoolbox_app"))
+        log_callback = kwargs.get("log_callback")
+        logger = logging.getLogger(kwargs.get("log_name", "suptoolbox_app"))
         log_callback(log_content="Starting masking generation...")
 
-        if lq_image_path is None:
+        if self.state.input_image_path is None:
             raise gr.Error("Input image must be provided!")
 
-        lq_image = Image.open(lq_image_path.path).convert("RGB")
+        lq_image = Image.open(self.state.input_image_path).convert("RGB")
+        self.state.cancel_event.clear()
         self.update_pipeline(log_callback=log_callback)
 
         try:
-            mask, _ = self.state.sup_toolbox_pipe.generate_prompt_mask(lq_image, mask_prompt)
+            mask, _ = sup_toolbox_pipe.generate_prompt_mask(lq_image, mask_prompt)
             if mask is None:
                 gr.Warning("Mask couldn't be generated!")
             return mask
@@ -1337,15 +1371,7 @@ class EventHandlers:
             logger.error(f"Error in generation object mask: {e}, process aborted!", exc_info=True)
             raise e
 
-    @spaces.GPU(duration=60)
-    @livelog(
-        log_names=["suptoolbox_app", "suptoolbox"],
-        outputs_for_yield=["placeholder1", "placeholder2"],
-        log_output_index=1,
-        result_output_index=0,
-        use_tracker=False,
-    )
-    def on_generate_caption(self, lq_image_path, **kwargs):
+    def on_generate_caption(self, **kwargs):
         """
         Generates a descriptive caption for the input image.
 
@@ -1359,17 +1385,19 @@ class EventHandlers:
         Returns:
             str: The generated image caption.
         """
-        log_callback, logger = kwargs.get("log_callback"), logging.getLogger(kwargs.get("log_name", "suptoolbox_app"))
+        log_callback = kwargs.get("log_callback")
+        logger = logging.getLogger(kwargs.get("log_name", "suptoolbox_app"))
         log_callback(log_content="Starting caption generation...")
 
-        if lq_image_path is None:
+        if self.state.input_image_path is None:
             raise gr.Error("Input image must be provided!")
 
-        lq_image = Image.open(lq_image_path.path).convert("RGB")
+        lq_image = Image.open(self.state.input_image_path).convert("RGB")
+        self.state.cancel_event.clear()
         self.update_pipeline(log_callback=log_callback)
 
         try:
-            caption = self.state.sup_toolbox_pipe.generate_caption(lq_image)
+            caption = sup_toolbox_pipe.generate_caption(lq_image)
             if caption is None:
                 gr.Warning("Caption couldn't be generated!")
             return caption
@@ -1377,42 +1405,14 @@ class EventHandlers:
             logger.error(f"Error in caption generation: {e}, process aborted!", exc_info=True)
             raise e
 
-    @spaces.GPU(duration=60)
-    # Here we don't use the @livelog decorator to ensure the progress bar is synchronized when the browser is not in focus.
     def on_generate(self, *args):
         """
-        Initiates the image generation process and streams updates to the Gradio UI.
-
-        This method acts as a generator, connected directly to a Gradio event (e.g., a
-        button click). It is responsible for orchestrating the background processing
-        task while keeping the UI responsive.
-
-        It performs the following steps:
-        1. Immediately yields an initial UI state update to disable interactive
-           elements and show progress indicators.
-        2. Creates a communication queue.
-        3. Spawns a new worker thread to execute the long-running `_process_image`
-           method, passing it the queue and all necessary input arguments.
-        4. Enters a loop to listen for updates (logs, progress, results) sent
-           from the worker thread via the queue.
-        5. Yields each update to the Gradio UI components as it is received.
-        6. Once the worker thread signals completion (by putting `None` on the
-           queue), it yields a final UI state update to re-enable interactive
-           elements.
-
-        Args:
-            *args: A variable-length tuple of arguments passed directly from the
-                Gradio `inputs` list. These arguments contain the current values of all
-                UI components required for the image generation process.
-
-        Yields:
-            tuple: A tuple of updates for the Gradio components listed in the `outputs`
-                of the event trigger. Each yield sends a new state to the UI, allowing
-                for real-time feedback.
+        Starts the image processing thread and yields updates from a queue.
+        This method is the entry point for the Gradio event chain.
         """
+
         # 1. Send initial UI state update (disable buttons, show progress).
         yield None, None, gr.update(interactive=False), gr.update(visible=True), gr.update(open=True)
-
         update_queue = queue.Queue()
 
         # 2. Package arguments for the worker thread.
@@ -1440,62 +1440,39 @@ class EventHandlers:
         # 5. Send final UI state update (re-enable buttons).
         yield final_images, log_update, gr.update(interactive=True), gr.update(visible=False), gr.skip()
 
-    def _process_image(
-        self,
-        update_queue: queue.Queue,
-        total_steps: int,
-        restorer_config: dict,
-        restorer_supir_advanced_config: dict,
-        upscaler_config: dict,
-        upscaler_supir_advanced_config: dict,
-        *input_params: Any,
-    ):
+    def _process_image(self, update_queue: queue.Queue, total_steps: int, *input_params: Any, **kwargs):
         """
         Executes the main image processing pipeline in a worker thread.
 
-        This method orchestrates the entire image restoration and/or upscaling
-        process. It is designed to be run in a separate thread to keep the UI
-        responsive. It communicates its progress, logs, and final results back
-        to the main thread via a queue.
-
-        The method handles input validation, configuration mapping, pipeline
-        initialization, and prediction. All exceptions and cancellation requests
-        are caught and reported through the queue.
+        This method receives simple, serializable data types from the UI event.
+        It retrieves complex configuration objects (like PropertySheet values)
+        directly from the shared application state (`self.state`), which are kept
+        up-to-date by their respective `.change()` events.
 
         Args:
-            update_queue (queue.Queue): The queue used to send status updates,
-                logs, and the final image result back to the UI thread.
-            total_steps (int): The pre-calculated total number of diffusion
-                steps for the progress tracker.
-            restorer_config (dict): The current configuration values from the
-                restorer's main PropertySheet.
-            restorer_supir_advanced_config (dict): The configuration values from the
-                restorer's advanced SUPIR PropertySheet.
-            upscaler_config (dict): The current configuration values from the
-                upscaler's main PropertySheet.
-            upscaler_supir_advanced_config (dict): The configuration values from the
-                upscaler's advanced SUPIR PropertySheet.
-            *input_params (Any): A tuple of the remaining UI input values,
-                passed positionally from the Gradio event. This includes engine
-                selections, prompts, models, etc.
+            update_queue (queue.Queue): The queue for sending status updates back to the UI.
+            total_steps (int): The pre-calculated total number of diffusion steps.
+            *input_params (Any): A tuple of the remaining simple UI input values
+                (e.g., engine selections, prompts), passed positionally.
+            **kwargs: Catches any extra keyword arguments.
 
         Side Effects:
-            - Puts multiple update dictionaries onto the `update_queue` to
-              communicate progress and logs.
-            - Puts the final image payload or an error status onto the queue.
-            - Puts a `None` sentinel value onto the queue upon completion or
-              failure to signal the end of the process.
-            - Modifies the state of `self.state.sup_toolbox_pipe` by initializing
-              and running it.
-            - Catches exceptions and logs them, reporting errors via the queue.
+            - Puts multiple update dictionaries and a final `None` sentinel onto the `update_queue`.
+            - Modifies and uses the shared `sup_toolbox_pipe` instance via `self.update_pipeline`.
+            - Catches all exceptions and reports them via the queue.
         """
+        from sup_toolbox.sup_toolbox_pipeline import PipelineCancelationRequested
 
         # 1. Prepare input params
+        restorer_config = self.state.restorer_config_class
+        upscaler_config = self.state.upscaler_config_class
+        restorer_supir_advanced_config = self.state.restorer_supir_advanced_config_class
+        upscaler_supir_advanced_config = self.state.upscaler_supir_advanced_config_class
         ui_inputs, _ = self.components._get_ui_inputs_and_outputs()
         ui_inputs_keys_sliced = list(ui_inputs.keys())[4:]
         input_param_with_values = dict(zip(ui_inputs_keys_sliced, input_params))
         input_image, res_engine, ups_engine = (
-            input_param_with_values.get("Input Image"),
+            self.state.input_image_path,
             input_param_with_values.get("Image Restore Engine"),
             input_param_with_values.get("Image Upscale Engine"),
         )
@@ -1788,15 +1765,15 @@ class EventHandlers:
                     config.upscaler_pipeline_params.callback_on_step_end = progress_callback
                     config.upscaler_sampler_config = self.state.uidata.map_scheduler_settings_to_config(SAMPLER_MAPPING["upscaler_sampler"])
 
-                config.image_path = input_image.path
+                config.image_path = input_image
                 self.update_pipeline(log_callback=process_and_send_updates, progress_bar_handler=progress_bar_handler)
 
-                initialize_status = self.state.sup_toolbox_pipe.initialize()
+                initialize_status = sup_toolbox_pipe.initialize()
                 if initialize_status:
-                    result, process_status = self.state.sup_toolbox_pipe.predict(metadata=image_metadata)
+                    result, process_status = sup_toolbox_pipe.predict(metadata=image_metadata)
                     if process_status:
                         logger.log(logging.INFO + 5, "Image generated successfully!")
-                        process_and_send_updates(status="success", final_image_payload=(input_image.path, result))
+                        process_and_send_updates(status="success", final_image_payload=(input_image, result))
                     else:
                         raise RuntimeError("Pipeline prediction returned a failure status.")
                 else:

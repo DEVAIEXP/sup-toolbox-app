@@ -16,13 +16,9 @@ from dataclasses import dataclass, field
 from threading import Event
 
 # Forward reference for type hint to avoid circular import
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ui.ui_data import UIData
-
-
-if TYPE_CHECKING:
-    from sup_toolbox.sup_toolbox_pipeline import SUPToolBoxPipeline
 
 
 @dataclass
@@ -31,9 +27,9 @@ class AppState:
 
     uidata: UIData
     cancel_event: Event = field(default_factory=Event)
-    sup_toolbox_pipe: "SUPToolBoxPipeline" = None
 
     # All other state variables that were previously global
+    input_image_path: str = None
     restorer_config_class: Any = None
     restorer_supir_advanced_config_class: Any = None
     upscaler_config_class: Any = None

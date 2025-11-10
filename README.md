@@ -12,7 +12,7 @@
   <a href="https://github.com/DEVAIEXP/sup-toolbox/blob/main/pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-blue.svg" alt="Python Version"></a>
   <a href="https://github.com/DEVAIEXP/sup-toolbox-app/stargazers"><img src="https://img.shields.io/github/stars/DEVAIEXP/sup-toolbox-app?style=social" alt="GitHub Stars"></a>
   <a href="https://github.com/DEVAIEXP/sup-toolbox"><img src="https://img.shields.io/badge/Powered%20by-SUP--Toolbox-orange" alt="Powered by SUP-Toolbox"></a>
-  <a href="https://huggingface.co/spaces/YOUR_HF_USERNAME/sup-toolbox-app"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow" alt="Hugging Face Spaces"></a>
+  <a href="https://huggingface.co/spaces/elismasilva/sup-toolbox-app"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-yellow" alt="Hugging Face Spaces"></a>
 </p>
 
 ## About

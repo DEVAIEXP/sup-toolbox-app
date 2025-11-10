@@ -17,7 +17,9 @@ from functools import partial
 from typing import Any
 
 import gradio as gr
+import spaces
 from gradio_folderexplorer.helpers import load_media_from_folder
+from gradio_livelog.utils import livelog
 
 from ui.ui_data import UIData
 from ui.ui_events import AppState, EventHandlers
@@ -38,19 +40,51 @@ class GradioApp:
 
     def _bind_events(self):
         c = self.components
-        ui_inputs, output_fields = self.components._get_ui_inputs_and_outputs()
-
+        ui_inputs, output_fields = c._get_ui_inputs_and_outputs()
         js_update_flyout = "(jsonData) => { update_flyout_from_state(jsonData); }"
         flyout_data_event = {"fn": None, "inputs": [c.js_data_bridge], "js": js_update_flyout}
 
-        # Wrappers
-        def create_livelog_wrapper(event_func, **patch_outputs):
-            def wrapper(*args, **kwargs):
-                for key, component in patch_outputs.items():
-                    kwargs[key] = component
-                yield from event_func(*args, **kwargs)
+        generate_inputs = list(ui_inputs.values())[4:]
 
-            return wrapper
+        @spaces.GPU(duration=60)
+        # Here we don't use the @livelog decorator function to ensure the progress bar is synchronized when the browser is not in focus.
+        def on_generate_wrapper(*args):
+            """
+            This wrapper is decorated by @spaces.GPU and is passed to Gradio.
+            It calls the actual logic handler from the EventHandlers instance.
+            """
+            yield from self.event_handlers.on_generate(*args)
+
+        @spaces.GPU(duration=60)
+        def on_refresh_mask_gpu_wrapper(*args, **kwargs):
+            """Wrapper for the mask generation."""
+
+            livelog_decorated_func = livelog(
+                log_names=["suptoolbox_app", "suptoolbox"],
+                outputs_for_yield=[c.restoration_mask, c.livelog_viewer],
+                log_output_index=1,
+                result_output_index=0,
+                use_tracker=False,
+            )(self.event_handlers.on_refresh_restoration_mask)
+
+            yield from livelog_decorated_func(*args, **kwargs)
+
+        @spaces.GPU(duration=60)
+        def on_generate_caption_gpu_wrapper(*args, **kwargs):
+            """
+            This wrapper handles the @spaces.GPU decorator and then applies
+            the @livelog decorator to the actual event handler.
+            """
+
+            livelog_decorated_func = livelog(
+                log_names=["suptoolbox_app", "suptoolbox"],
+                outputs_for_yield=[kwargs.pop("output_component_1"), kwargs.pop("output_component_2")],
+                log_output_index=1,
+                result_output_index=0,
+                use_tracker=False,
+            )(self.event_handlers.on_generate_caption)
+
+            yield from livelog_decorated_func(*args, **kwargs)
 
         def on_load_metadata_from_gallery_wrapper(folder_explorer_value: Any, image_data: gr.EventData):
             return self.event_handlers.on_load_metadata_from_gallery(folder_explorer_value, image_data)
@@ -106,11 +140,7 @@ class GradioApp:
             inputs=[c.preview_restoration_mask_chk],
             outputs=[c.restoration_mask_prompt, c.preview_restoration_mask_btn],
         )
-        on_refresh_mask_wrapper = create_livelog_wrapper(
-            self.event_handlers.on_refresh_restoration_mask,
-            placeholder1=c.restoration_mask,
-            placeholder2=c.livelog_viewer,
-        )
+
         c.preview_restoration_mask_btn.click(
             self.event_handlers.on_check_inputs,
             inputs=[
@@ -118,14 +148,13 @@ class GradioApp:
                 c.upscaler_engine,
                 c.restorer_model,
                 c.upscaler_model,
-                c.input_image,
                 gr.State("generation_mask"),
             ],
             outputs=[c.bottom_bar, c.livelog_viewer],
             show_progress="hidden",
         ).success(
-            on_refresh_mask_wrapper,
-            inputs=[c.restoration_mask_prompt, c.input_image],
+            fn=on_refresh_mask_gpu_wrapper,
+            inputs=[c.restoration_mask_prompt],
             outputs=[c.restoration_mask, c.livelog_viewer],
         ).success(
             partial(
@@ -137,7 +166,6 @@ class GradioApp:
             outputs=[c.flyout_visible, c.active_anchor_id, c.restoration_mask, c.js_data_bridge],
         ).success(**flyout_data_event)
 
-        on_gen_caption_res_wrapper = create_livelog_wrapper(self.event_handlers.on_generate_caption, placeholder1=c.res_prompt, placeholder2=c.livelog_viewer)
         c.res_prompt_generate_btn.click(
             self.event_handlers.on_check_inputs,
             inputs=[
@@ -145,14 +173,15 @@ class GradioApp:
                 c.upscaler_engine,
                 c.restorer_model,
                 c.upscaler_model,
-                c.input_image,
                 gr.State("caption_generation"),
             ],
             outputs=[c.bottom_bar, c.livelog_viewer],
             show_progress="hidden",
-        ).success(on_gen_caption_res_wrapper, inputs=[c.input_image], outputs=[c.res_prompt, c.livelog_viewer])
+        ).success(
+            fn=partial(on_generate_caption_gpu_wrapper, output_component_1=c.res_prompt, output_component_2=c.livelog_viewer),
+            outputs=[c.res_prompt, c.livelog_viewer],
+        )
 
-        on_gen_caption_ups_wrapper = create_livelog_wrapper(self.event_handlers.on_generate_caption, placeholder1=c.ups_prompt, placeholder2=c.livelog_viewer)
         c.ups_prompt_generate_btn.click(
             self.event_handlers.on_check_inputs,
             inputs=[
@@ -160,12 +189,14 @@ class GradioApp:
                 c.upscaler_engine,
                 c.restorer_model,
                 c.upscaler_model,
-                c.input_image,
                 gr.State("caption_generation"),
             ],
             outputs=[c.bottom_bar, c.livelog_viewer],
             show_progress="hidden",
-        ).success(on_gen_caption_ups_wrapper, inputs=[c.input_image], outputs=[c.ups_prompt, c.livelog_viewer])
+        ).success(
+            fn=partial(on_generate_caption_gpu_wrapper, output_component_1=c.ups_prompt, output_component_2=c.livelog_viewer),
+            outputs=[c.ups_prompt, c.livelog_viewer],
+        )
         c.restorer_engine.select(
             self.event_handlers.on_restore_engine_change,
             inputs=[c.restorer_engine, c.upscaler_engine],
@@ -243,6 +274,12 @@ class GradioApp:
         c.restorer_sheet.change(self.event_handlers.on_restorer_sheet_change, inputs=[c.restorer_sheet], outputs=[c.restorer_sheet])
         c.upscaler_sheet.change(self.event_handlers.on_upscaler_sheet_change, inputs=[c.upscaler_sheet], outputs=[c.upscaler_sheet])
         c.settings_sheet.change(self.event_handlers.on_settings_sheet_change, inputs=[c.settings_sheet], outputs=[c.settings_sheet])
+        c.restorer_sheet_supir_advanced.change(
+            self.event_handlers.on_restorer_supir_advanced_sheet_change, inputs=[c.restorer_sheet_supir_advanced], outputs=[c.restorer_sheet_supir_advanced]
+        )
+        c.upscaler_sheet_supir_advanced.change(
+            self.event_handlers.on_upscaler_supir_advanced_sheet_change, inputs=[c.upscaler_sheet_supir_advanced], outputs=[c.upscaler_sheet_supir_advanced]
+        )
         c.settings_tab.select(self.event_handlers.on_settings_tab_select, outputs=[c.settings_sheet])
         update_prompt_helper_from_tab_event = {
             "fn": self.event_handlers.update_prompt_helper_from_tab,
@@ -279,7 +316,7 @@ class GradioApp:
 
         c.run_btn.click(
             self.event_handlers.on_check_inputs,
-            inputs=[c.restorer_engine, c.upscaler_engine, c.restorer_model, c.upscaler_model, c.input_image],
+            inputs=[c.restorer_engine, c.upscaler_engine, c.restorer_model, c.upscaler_model],
             outputs=[c.bottom_bar, c.livelog_viewer],
             show_progress="hidden",
         ).success(
@@ -287,9 +324,9 @@ class GradioApp:
             inputs=[c.restorer_sheet, c.upscaler_sheet, c.restorer_engine, c.upscaler_engine],
             outputs=c.total_inference_steps,
         ).success(
-            fn=self.event_handlers.on_generate,
-            inputs=[c.total_inference_steps, *ui_inputs.values()],
-            outputs=[c.result_slider, c.livelog_viewer, c.run_btn, c.cancel_btn],
+            fn=on_generate_wrapper,
+            inputs=[c.total_inference_steps, *generate_inputs],
+            outputs=[c.result_slider, c.livelog_viewer, c.run_btn, c.cancel_btn, c.bottom_bar],
             show_progress="hidden",
         )
         c.cancel_btn.click(self.event_handlers.on_cancel_click)
@@ -303,6 +340,7 @@ class GradioApp:
             outputs=list(c.ALL_UI_COMPONENTS.values()),
         )
         c.input_image.load_metadata(self.event_handlers.on_load_metadata_from_single_image, inputs=c.input_image, outputs=output_fields)
+        c.input_image.change(self.event_handlers.on_input_image_change, inputs=c.input_image)
         c.folder_explorer.change(load_media_from_folder, inputs=c.folder_explorer, outputs=c.generated_image_viewer)
         c.generated_image_viewer.load_metadata(fn=on_load_metadata_from_gallery_wrapper, inputs=[c.folder_explorer], outputs=output_fields).then(
             lambda: gr.update(selected="process-tab"), outputs=c.main_tabs

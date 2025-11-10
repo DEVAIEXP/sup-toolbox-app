@@ -144,6 +144,7 @@ class UIComponents:
             "Image Upscale - Negative prompt": self.ups_negative_prompt,
         }
         output_fields = [*ui_inputs.copy().values()]
+        ui_inputs.pop("Input Image", None)
         return ui_inputs, output_fields
 
 
