@@ -51,6 +51,7 @@ from ui.ui_config import (
     DEFAULT_PROMPTS,
     RESTORER_CONFIG_MAPPING,
     RESTORER_SHEET_DEPENDENCY_RULES,
+    RUN_ON_SPACES,
     SAMPLER_MAPPING,
     SUPIR_ADVANCED_RULES,
     UPSCALER_CONFIG_MAPPING,
@@ -1555,6 +1556,7 @@ class EventHandlers:
 
                 # 6. Map all pipeline configuration from UI to SUP-Toolbox Pipeline
                 config = self.state.uidata.config
+                config.running_on_spaces = True if RUN_ON_SPACES == "True" else False
                 config.restorer_engine, config.upscaler_engine = (
                     RestorerEngine.from_str(res_engine),
                     UpscalerEngine.from_str(ups_engine),

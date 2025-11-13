@@ -11,9 +11,17 @@ body {
 /* Main application container styling */
 .gradio-container {
     border-radius: 15px;
-    padding: 10px 10px; 
+    padding: 10px 20px; 
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); 
-    margin: 40px 350px;
+    margin: 10px;
+}
+
+/* 2. Media Query for larger screens (desktops) */
+@media (min-width: 1281px) {
+    .gradio-container {        
+        padding: 10px 370px;
+        max-width: 2400px;
+    }
 }
 
 /* Text shadow for main headings for better readability */
@@ -22,10 +30,10 @@ body {
 }
 
 /* Utility class to make elements fill their container's width */
-.fillable {
+/* .fillable {
     width: 100% !important;
     max-width: unset !important; 
-}
+} */
 .fillable .sidebar-parent {
     padding-left: 10px !important;
     padding-right: 10px !important;

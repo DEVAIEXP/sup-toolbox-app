@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from dataclasses import dataclass, field
 from typing import List, Literal
 
@@ -23,6 +24,8 @@ from sup_toolbox.config import PAG_LAYERS
 from sup_toolbox.enums import ImageSizeFixMode, SUPIRModel
 from sup_toolbox.utils.system import find_dist_info_files, get_module_file
 
+
+RUN_ON_SPACES = os.getenv("RUN_ON_SPACES")
 
 LICENSE_PATHS = {
     "NOTICE": "./NOTICE",
